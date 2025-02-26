@@ -53,7 +53,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		peersMutex.Lock()
 		delete(peers, peer.ID)
 		peersMutex.Unlock()
-		fmt.Printf("Peer %s disconnected\n", peerIDStr)
+		fmt.Printf("Peer %s disconnected\n", peer.ID)
 	}()
     //assign msg with websocket's connection reading the message
 	//_ will handle the errors
@@ -78,7 +78,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 		if exists {
 			// If the recipient is online, forward the message to them.
-			err := recipientConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("From %s: %s", peerIDStr, message)))
+			err := recipientConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("From %s: %s", peer.ID, message)))
 			if err != nil {
 				fmt.Println("Error forwarding message:", err)
 			} else {

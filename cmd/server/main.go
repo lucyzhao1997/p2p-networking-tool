@@ -9,6 +9,7 @@ import (
     "fmt"
     "net/http"
     "sync"
+	"log"
     "github.com/gorilla/websocket"
 )
 
@@ -78,7 +79,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 		if exists {
 			// If the recipient is online, forward the message to them.
-			err := recipientConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("From %s: %s", peer.ID, message)))
+			err := recipientConn.Conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("From %s: %s", peer.ID, message)))
 			if err != nil {
 				fmt.Println("Error forwarding message:", err)
 			} else {

@@ -19,9 +19,9 @@ type Message struct {
 
 // PeerMock simulates a peer client.
 type PeerMock struct {
-    id   string
-    conn *websocket.Conn
-    mu   sync.Mutex
+    id          string
+    conn        *websocket.Conn
+    mu          sync.Mutex
     lastMessage string
 }
 
@@ -42,15 +42,17 @@ func ConnectPeer(t *testing.T, peerID string) *PeerMock {
     peer := &PeerMock{id: peerID, conn: conn}
 
     // Listen for incoming messages
-    go func() {
+    go func() { 
         for {
             _, msg, err := conn.ReadMessage()
             if err != nil {
-                break // Stop reading on error
+                t.Logf("Peer %s error reading message: %v", peerID, err)
+                break 
             }
             peer.mu.Lock()
             peer.lastMessage = string(msg)
             peer.mu.Unlock()
+            t.Logf("✅ Peer %s received message: %s", peerID, msg)
         }
     }()
 
@@ -74,11 +76,13 @@ func (p *PeerMock) SendMessage(t *testing.T, recipient, content string) {
     if err := p.conn.WriteMessage(websocket.TextMessage, jsonMsg); err != nil {
         t.Fatalf("Failed to send message: %v", err)
     }
+    t.Logf("Peer %s sending message to %s: %s", p.id, recipient, content)
 }
 
 // WaitForMessage waits for a message to arrive within a timeout.
 func (p *PeerMock) WaitForMessage(t *testing.T, expectedContent string, timeout time.Duration) bool {
     deadline := time.Now().Add(timeout)
+    t.Logf("Peer %s last received message: %s", p.id, p.lastMessage)
     for time.Now().Before(deadline) {
         p.mu.Lock()
         if p.lastMessage == expectedContent {
@@ -91,7 +95,8 @@ func (p *PeerMock) WaitForMessage(t *testing.T, expectedContent string, timeout 
     return false
 }
 
-func main(t *testing.T) {
+// TestMockPeers runs the mock peer test.
+func TestMockPeers(t *testing.T) {
     // Step 1: Start two mock peers
     peerA := ConnectPeer(t, "PeerA")
     defer peerA.conn.Close()

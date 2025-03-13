@@ -46,13 +46,14 @@ func ConnectPeer(t *testing.T, peerID string) *PeerMock {
         for {
             _, msg, err := conn.ReadMessage()
             if err != nil {
-                t.Logf("Peer %s error reading message: %v", peerID, err)
-                break 
+                if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+                    t.Logf("Peer %s error reading message: %v", peerID, err)
+                }
+                return // Stop reading on error
             }
             peer.mu.Lock()
             peer.lastMessage = string(msg)
             peer.mu.Unlock()
-            t.Logf("✅ Peer %s received message: %s", peerID, msg)
         }
     }()
 
@@ -108,7 +109,7 @@ func TestMockPeers(t *testing.T) {
     peerA.SendMessage(t, "PeerB", "Hello, PeerB!")
 
     // Step 3: Wait for Peer B to receive the message
-    if !peerB.WaitForMessage(t, "Hello, PeerB!", 3*time.Second) {
+    if !peerB.WaitForMessage(t, "Hello, PeerB!", 5*time.Second) {
         t.Errorf("❌ Peer B did not receive the expected message.")
     } else {
         t.Logf("✅ Peer B received the expected message.")

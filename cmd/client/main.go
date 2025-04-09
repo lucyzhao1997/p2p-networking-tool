@@ -9,29 +9,47 @@
 package main
 
 import (
-    "fmt"
-    "github.com/lucyzhao1997/p2p-networking-tool/internal/nat"
-    "github.com/lucyzhao1997/p2p-networking-tool/internal/security"
-    "github.com/lucyzhao1997/p2p-networking-tool/pkg/config"
+    "p2p-netork-tool/cmd/config"
+    "p2p-netork-tool/cmd/helper"
     "log"
+    "io"
 )
 
 func main() {
-
-    cfg := config.LoadConfig()
-
-    // Generate RSA Key Pair
-    privateKey, publicKey, err := security.GenerateKeyPair()
+    //connect to server
+    tcpConn, err := helper.CreateConnect(config.ServerAddr)
     if err != nil {
-        log.Fatalf("Failed to generate key pair: %v", err)
-    }
-    fmt.Println("Public Key:", publicKey)
+		panic(err)
+	}
+	log.Printf("Connected Successfully, the address is：%s\n", conn.RemoteAddr().String())
+    for {
+		
+		data, err := helper.GetDataFromConnection(constant.BufSize, conn)
+		if err != nil {
+			log.Printf("Failed to read data, error log：%s\n", err.Error())
+			continue
+		}
+		log.Printf("Data recieved：%s\n", string(data))
+		
+		if string(data) == "New Connection" {
+			//connect to tunnel server
+			go messgaeForward()
+		}
+	}
+}
+func messgaeForward() {
+	// connect to tunnel server
+	tunnelConn, err := helper.CreateConnect(constant.TunnelAddr)
+	if err != nil {
+		panic(err)
+	}
 
-    //get public ip addr
-    ip, port, err := nat.GetPublicIP()
-    if err != nil {
-		//handle error message
-        panic(err)
-    }
-    fmt.Printf("Public IP: %s, Port: %d\n", ip, port)
+	// connect to client side service
+	clientConn, err := helper.CreateConnect(constant.AppPort)
+	if err != nil {
+		panic(err)
+	}
+
+	go io.Copy(clientConn, tunnelConn)
+	go io.Copy(tunnelConn, clientConn)
 }

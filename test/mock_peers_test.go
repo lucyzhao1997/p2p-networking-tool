@@ -1,7 +1,8 @@
-package main
+package p2pnetworkingtool
 
 import (
     "encoding/json"
+    "log"
     "net/http"
     "net/url"
     "sync"
@@ -34,15 +35,28 @@ func ConnectPeer(t *testing.T, peerID string) *PeerMock {
         t.Fatalf("Failed to parse server URL: %v", err)
     }
 
-    conn, _, err := websocket.DefaultDialer.Dial(u.String(), http.Header{})
+    conn, resp, err := websocket.DefaultDialer.Dial(u.String(), http.Header{})
     if err != nil {
-        t.Fatalf("Failed to connect peer %s: %v", peerID, err)
+        t.Fatalf("Failed to connect peer %s: %v, Response: %+v", peerID, err, resp)
+    }
+
+    // Send initial message with peer ID
+    initMsg := Message{
+        SenderID: peerID,
+    }
+    jsonInitMsg, err := json.Marshal(initMsg)
+    if err != nil {
+        t.Fatalf("Failed to marshal initial JSON message: %v", err)
+    }
+
+    if err := conn.WriteMessage(websocket.TextMessage, jsonInitMsg); err != nil {
+        t.Fatalf("Failed to send initial message: %v", err)
     }
 
     peer := &PeerMock{id: peerID, conn: conn}
 
     // Listen for incoming messages
-    go func() { 
+    go func() {
         for {
             _, msg, err := conn.ReadMessage()
             if err != nil {
@@ -83,21 +97,30 @@ func (p *PeerMock) SendMessage(t *testing.T, recipient, content string) {
 // WaitForMessage waits for a message to arrive within a timeout.
 func (p *PeerMock) WaitForMessage(t *testing.T, expectedContent string, timeout time.Duration) bool {
     deadline := time.Now().Add(timeout)
-    t.Logf("Peer %s last received message: %s", p.id, p.lastMessage)
     for time.Now().Before(deadline) {
         p.mu.Lock()
-        if p.lastMessage == expectedContent {
-            p.mu.Unlock()
+        receivedMessage := p.lastMessage
+        p.mu.Unlock()
+        if receivedMessage == expectedContent {
+            t.Logf("Peer %s received the expected message: %s", p.id, receivedMessage)
             return true
         }
-        p.mu.Unlock()
         time.Sleep(100 * time.Millisecond) // Wait and check again
     }
+    t.Logf("Peer %s did not receive the expected message. Last received: %s", p.id, p.lastMessage)
     return false
 }
 
 // TestMockPeers runs the mock peer test.
 func TestMockPeers(t *testing.T) {
+    // Start the server in a separate goroutine
+    go func() {
+        log.Println("Starting server...")
+        StartServer()
+    }()
+    // Give the server some time to start up
+    time.Sleep(2 * time.Second)
+
     // Step 1: Start two mock peers
     peerA := ConnectPeer(t, "PeerA")
     defer peerA.conn.Close()
@@ -109,7 +132,8 @@ func TestMockPeers(t *testing.T) {
     peerA.SendMessage(t, "PeerB", "Hello, PeerB!")
 
     // Step 3: Wait for Peer B to receive the message
-    if !peerB.WaitForMessage(t, "Hello, PeerB!", 5*time.Second) {
+    expectedMessage := "{\"sender\":\"PeerA\",\"recipient\":\"PeerB\",\"content\":\"Hello, PeerB!\"}"
+    if !peerB.WaitForMessage(t, expectedMessage, 5*time.Second) {
         t.Errorf("❌ Peer B did not receive the expected message.")
     } else {
         t.Logf("✅ Peer B received the expected message.")

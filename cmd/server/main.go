@@ -1,116 +1,91 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
-    "net/http"
-    "sync"
-
-    "github.com/gorilla/websocket"
+	"p2p-networking-tool/cmd/config"
+	"p2p-networking-tool/cmd/helper"
+	"io"
+	"log"
+	"net"
+	"sync"
 )
 
-// WebSocket upgrader
-var upgrader = websocket.Upgrader{
-    CheckOrigin: func(r *http.Request) bool { return true },
-}
+// serverConn 
+var serverConn *net.TCPConn
 
-// Peer structure
-type Peer struct {
-    ID   string
-    Conn *websocket.Conn
-}
+// appConn
+var appConn *net.TCPConn
 
-// Message structure for JSON parsing
-type Message struct {
-    Sender    string `json:"sender"`
-    Recipient string `json:"recipient"`
-    Content   string `json:"content"`
-}
+// wg wait for all goroutines to finish
+var wg sync.WaitGroup
 
-// Map to store connected peers
-var peers = make(map[string]*Peer)
-var peersMutex = sync.Mutex{}
-
-func handleConnection(w http.ResponseWriter, r *http.Request) {
-    conn, err := upgrader.Upgrade(w, r, nil)
-    if err != nil {
-        log.Println("❌ WebSocket upgrade failed:", err)
-        return
-    }
-    defer conn.Close()
-
-    // Read the first message to extract the peer ID
-    _, firstMsg, err := conn.ReadMessage()
-    if err != nil {
-        log.Println("❌ Failed to read peer ID:", err)
-        return
-    }
-
-    // Parse the JSON message
-    var message Message
-    err = json.Unmarshal(firstMsg, &message)
-    if err != nil {
-        log.Println("❌ Failed to parse JSON message:", err)
-        conn.WriteMessage(websocket.TextMessage, []byte("Invalid JSON format"))
-        return
-    }
-
-    peerID := message.Sender // Extract sender as the peer ID
-
-    // Store the peer
-    peersMutex.Lock()
-    peer := &Peer{ID: peerID, Conn: conn}
-    peers[peerID] = peer
-    peersMutex.Unlock()
-
-    log.Printf("✅ Peer connected: %s", peerID)
-
-    defer func() {
-        peersMutex.Lock()
-        delete(peers, peerID)
-        peersMutex.Unlock()
-        log.Printf("❌ Peer %s disconnected", peerID)
-    }()
-
-    for {
-        _, msg, err := conn.ReadMessage()
-        if err != nil {
-            log.Printf("❌ Peer %s error reading message: %v", peerID, err)
-            return
-        }
-
-        var incomingMsg Message
-        err = json.Unmarshal(msg, &incomingMsg)
-        if err != nil {
-            log.Println("❌ Failed to parse incoming message:", err)
-            conn.WriteMessage(websocket.TextMessage, []byte("Invalid message format"))
-            continue
-        }
-
-        log.Printf("📩 Received from %s: %s", incomingMsg.Sender, incomingMsg.Content)
-
-        // Find recipient
-        peersMutex.Lock()
-        recipientConn, exists := peers[incomingMsg.Recipient]
-        peersMutex.Unlock()
-
-        if exists {
-            err := recipientConn.Conn.WriteMessage(websocket.TextMessage, msg)
-            if err != nil {
-                log.Printf("❌ Error forwarding message from %s to %s: %v", incomingMsg.Sender, incomingMsg.Recipient, err)
-            } else {
-                log.Printf("✅ Message delivered from %s to %s", incomingMsg.Sender, incomingMsg.Recipient)
-                conn.WriteMessage(websocket.TextMessage, []byte("Message delivered"))
-            }
-        } else {
-            log.Printf("❌ Recipient %s not online", incomingMsg.Recipient)
-            conn.WriteMessage(websocket.TextMessage, []byte("Recipient not online"))
-        }
-    }
-}
 
 func main() {
-    http.HandleFunc("/ws", handleConnection)
-    log.Println("🚀 Signaling server started on :8080")
-    log.Fatal(http.ListenAndServe(":8080", nil))
+	go serverListen()
+	//target server
+	go appListen()
+	go tunnelListen()
+
+	//wait for all goroutines to finish
+	wg.Add(1)
+	wg.Wait()
+}
+
+func serverListen() {
+	//this is for accepting client connection
+	tcpListener, err := helper.CreateListen(constant.ServerAddr)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Server Address：%s\n", tcpListener.Addr().String())
+
+	//wait to receive client connection
+	for {
+		serverConn, err = tcpListener.AcceptTCP()
+		if err != nil {
+			log.Printf("Connection failed, error log：%s\n", err.Error())
+			return
+		}
+		go helper.KeepAlive(serverConn)
+	}
+}
+
+// NAT traversal, this is for navigating between client side and server side data and connnections
+func tunnelListen() {
+	tcpListener, err := helper.CreateListen(constant.TunnelAddr)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("tunnel server address：%s\n", tcpListener.Addr().String())
+	for {
+		tunnelConn, err := tcpListener.AcceptTCP()
+		if err != nil {
+			log.Printf("tunnel server failed, error log：%s\n", err.Error())
+			return
+		}
+		// data transfer
+		go io.Copy(appConn, tunnelConn)
+		go io.Copy(tunnelConn, appConn)
+	}
+}
+
+// endpoint server
+func appListen() {
+	//监听目的服务端
+	tcpListener, err := helper.CreateListen(constant.AppTargetPort)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("End point server address is: %s\n", tcpListener.Addr().String())
+
+	for {
+		appConn, err = tcpListener.AcceptTCP()
+		if err != nil {
+			log.Printf("end point conenction failed, error log：%s\n", err.Error())
+			return
+		}
+		_, err := serverConn.Write([]byte("New Connection"))
+		if err != nil {
+			log.Printf("message send failed, error：%s\n", err.Error())
+		}
+	}
 }

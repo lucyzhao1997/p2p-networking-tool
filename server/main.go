@@ -1,8 +1,8 @@
 package main
 
 import (
-	"p2p-networking-tool/cmd/config"
-	"p2p-networking-tool/cmd/helper"
+	"github.com/lucyzhao1997/p2p-networking-tool/config"
+	"github.com/lucyzhao1997/p2p-networking-tool/helper"
 	"io"
 	"log"
 	"net"
@@ -32,7 +32,7 @@ func main() {
 
 func serverListen() {
 	//this is for accepting client connection
-	tcpListener, err := helper.CreateListen(constant.ServerAddr)
+	tcpListener, err := helper.CreateListen(config.ServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +51,7 @@ func serverListen() {
 
 // NAT traversal, this is for navigating between client side and server side data and connnections
 func tunnelListen() {
-	tcpListener, err := helper.CreateListen(constant.TunnelAddr)
+	tcpListener, err := helper.CreateListen(config.TunnelAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +71,7 @@ func tunnelListen() {
 // endpoint server
 func appListen() {
 	//监听目的服务端
-	tcpListener, err := helper.CreateListen(constant.AppTargetPort)
+	tcpListener, err := helper.CreateListen(config.AppTargetPort)
 	if err != nil {
 		panic(err)
 	}

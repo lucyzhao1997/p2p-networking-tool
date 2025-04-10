@@ -1,7 +1,7 @@
 package main
 
 import (
-	"p2p-networking-tool/cmd/config"
+	"github.com/lucyzhao1997/p2p-networking-tool/config"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -17,6 +17,6 @@ func main() {
 		}
 		writer.Write(b)
 	})
-	log.Printf("Local server starts：%s\n", constant.AppPort)
-	http.ListenAndServe(constant.AppPort, nil)
+	log.Printf("Local server starts：%s\n", config.AppPort)
+	http.ListenAndServe(config.AppPort, nil)
 }

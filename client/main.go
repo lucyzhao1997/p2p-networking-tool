@@ -9,22 +9,22 @@
 package main
 
 import (
-    "p2p-netork-tool/cmd/config"
-    "p2p-netork-tool/cmd/helper"
+    "github.com/lucyzhao1997/p2p-networking-tool/config"
+    "github.com/lucyzhao1997/p2p-networking-tool/helper"
     "log"
     "io"
 )
 
 func main() {
     //connect to server
-    tcpConn, err := helper.CreateConnect(config.ServerAddr)
+    conn, err := helper.CreateConnect(config.ServerAddr)
     if err != nil {
 		panic(err)
 	}
 	log.Printf("Connected Successfully, the address is：%s\n", conn.RemoteAddr().String())
     for {
 		
-		data, err := helper.GetDataFromConnection(constant.BufSize, conn)
+		data, err := helper.GetDataFromConnection(config.BufSize, conn)
 		if err != nil {
 			log.Printf("Failed to read data, error log：%s\n", err.Error())
 			continue
@@ -39,13 +39,13 @@ func main() {
 }
 func messgaeForward() {
 	// connect to tunnel server
-	tunnelConn, err := helper.CreateConnect(constant.TunnelAddr)
+	tunnelConn, err := helper.CreateConnect(config.TunnelAddr)
 	if err != nil {
 		panic(err)
 	}
 
 	// connect to client side service
-	clientConn, err := helper.CreateConnect(constant.AppPort)
+	clientConn, err := helper.CreateConnect(config.AppPort)
 	if err != nil {
 		panic(err)
 	}

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-//once client is connected to server, this method will be called. 
+//once user is connected to server, this method will be called. 
 // ResolveTCPAddr is to resolve a TCP address, involves ip address and port 
 // ListenTCP函数监听TCP地址，addr则是一个TCP地址，
 // 如果addr的端口字段为0，函数将选择一个当前可用的端口，

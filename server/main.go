@@ -62,7 +62,7 @@ func tunnelListen() {
 			log.Printf("tunnel server failed, error log：%s\n", err.Error())
 			return
 		}
-		// data transfer
+		// data transfer 
 		go io.Copy(appConn, tunnelConn)
 		go io.Copy(tunnelConn, appConn)
 	}
@@ -70,7 +70,6 @@ func tunnelListen() {
 
 // endpoint server
 func appListen() {
-	//监听目的服务端
 	tcpListener, err := helper.CreateListen(config.AppTargetPort)
 	if err != nil {
 		panic(err)

@@ -1,4 +1,4 @@
-# p2p-networking-tool
+# NAT traversal TURN
 Simple NAT traversal 
 Steps from the user's perspective:
 1. User send a request via public IP address targeting the server's public endpoint
